@@ -305,13 +305,17 @@ function StatusBadge({ status }) {
   );
 }
 
+
 function Overview({
   setActivePage,
   bookings,
   setBookings,
   search,
   setSearch,
+  properties,
+  reservations,
 }) {
+
   const [statusFilter, setStatusFilter] = useState("All bookings");
   const [showFilters, setShowFilters] = useState(false);
 
@@ -361,15 +365,17 @@ function Overview({
       <section className="metric-grid" aria-label="Business metrics">
         <MetricCard
           label="Total properties"
-          value="12"
-          change="+2"
-          detail="vs. last month"
+          value={properties.length}
+          change=""
+          detail="Properties from FastAPI"
           icon="home"
           tone="tone-mint"
         />
         <MetricCard
           label="Active reservations"
-          value="28"
+          value={reservations.filter(
+           (reservation) => reservation.status === "Confirmed"
+          ).length}
           change="+12.8%"
           detail="vs. last month"
           icon="calendar"
@@ -825,6 +831,10 @@ export default function App() {
   // Add the properties API state and useEffect here
     // Properties API state
   const [properties, setProperties] = useState([]);
+  
+  const [reservations, setReservations] = useState([]);
+  const [loadingReservations, setLoadingReservations] = useState(true);
+  const [reservationsError, setReservationsError] = useState("");
   const [loadingProperties, setLoadingProperties] = useState(true);
   const [propertiesError, setPropertiesError] = useState("");
 
@@ -884,6 +894,41 @@ export default function App() {
     loadProperties();
   }, []);
 
+useEffect(() => {
+  async function loadReservations() {
+    try {
+      setLoadingReservations(true);
+      setReservationsError("");
+
+      const response = await fetch(
+        "http://127.0.0.1:8000/api/reservations"
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!Array.isArray(data.reservations)) {
+        throw new Error(
+          "The API response does not contain a reservations array."
+        );
+      }
+
+      setReservations(data.reservations);
+    } catch (error) {
+      setReservationsError(
+        error.message || "Unable to load reservations."
+      );
+    } finally {
+      setLoadingReservations(false);
+    }
+  }
+
+  loadReservations();
+}, []);
+
 
   return (
     <div className="app-shell">
@@ -936,6 +981,8 @@ export default function App() {
               setBookings={setBookings}
               search={search}
               setSearch={setSearch}
+              properties={properties}
+              reservations={reservations}
             />
           ) : activePage === "Properties" ? (
             <PropertiesPage

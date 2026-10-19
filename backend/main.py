@@ -63,3 +63,45 @@ def get_properties():
             },
         ]
     }
+@app.get("/api/reservations")
+def get_reservations():
+    return {
+        "reservations": [
+            {
+                "id": 1,
+                "guest_name": "Aarav Sharma",
+                "property_id": 1,
+                "property_name": "Coastal Haven",
+                "check_in": "2026-10-22",
+                "check_out": "2026-10-26",
+                "guests": 2,
+                "status": "Confirmed",
+                "total_amount": 18000,
+                "currency": "INR",
+            },
+            {
+                "id": 2,
+                "guest_name": "Priya Nair",
+                "property_id": 2,
+                "property_name": "Mountain View Retreat",
+                "check_in": "2026-10-24",
+                "check_out": "2026-10-27",
+                "guests": 4,
+                "status": "Confirmed",
+                "total_amount": 18600,
+                "currency": "INR",
+            },
+            {
+                "id": 3,
+                "guest_name": "Rohan Mehta",
+                "property_id": 3,
+                "property_name": "City Comfort Apartment",
+                "check_in": "2026-10-28",
+                "check_out": "2026-10-30",
+                "guests": 2,
+                "status": "Pending",
+                "total_amount": 5600,
+                "currency": "INR",
+            },
+        ]
+    }
