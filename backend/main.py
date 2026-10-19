@@ -2,6 +2,9 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from database import DATABASE_PATH, initialize_database
+
+initialize_database()
 
 app = FastAPI(
     title="Vacation Rental Channel Manager API",
@@ -33,75 +36,48 @@ def health_check():
     }
 
 
+
 @app.get("/api/properties")
 def get_properties():
-    return {
-        "properties": [
-            {
-                "id": 1,
-                "name": "Coastal Haven",
-                "location": "Goa, India",
-                "bedrooms": 2,
-                "nightly_rate": 4500,
-                "currency": "INR",
-            },
-            {
-                "id": 2,
-                "name": "Mountain View Retreat",
-                "location": "Coorg, India",
-                "bedrooms": 3,
-                "nightly_rate": 6200,
-                "currency": "INR",
-            },
-            {
-                "id": 3,
-                "name": "City Comfort Apartment",
-                "location": "Bengaluru, India",
-                "bedrooms": 1,
-                "nightly_rate": 2800,
-                "currency": "INR",
-            },
-        ]
-    }
+    import sqlite3
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        connection.row_factory = sqlite3.Row
+
+        rows = connection.execute("""
+            SELECT id, name, location, bedrooms, nightly_rate, currency
+            FROM properties
+            ORDER BY id
+        """).fetchall()
+
+        properties = [dict(row) for row in rows]
+
+    return {"properties": properties}
+
+
 @app.get("/api/reservations")
 def get_reservations():
-    return {
-        "reservations": [
-            {
-                "id": 1,
-                "guest_name": "Aarav Sharma",
-                "property_id": 1,
-                "property_name": "Coastal Haven",
-                "check_in": "2026-10-22",
-                "check_out": "2026-10-26",
-                "guests": 2,
-                "status": "Confirmed",
-                "total_amount": 18000,
-                "currency": "INR",
-            },
-            {
-                "id": 2,
-                "guest_name": "Priya Nair",
-                "property_id": 2,
-                "property_name": "Mountain View Retreat",
-                "check_in": "2026-10-24",
-                "check_out": "2026-10-27",
-                "guests": 4,
-                "status": "Confirmed",
-                "total_amount": 18600,
-                "currency": "INR",
-            },
-            {
-                "id": 3,
-                "guest_name": "Rohan Mehta",
-                "property_id": 3,
-                "property_name": "City Comfort Apartment",
-                "check_in": "2026-10-28",
-                "check_out": "2026-10-30",
-                "guests": 2,
-                "status": "Pending",
-                "total_amount": 5600,
-                "currency": "INR",
-            },
-        ]
-    }
+    import sqlite3
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        connection.row_factory = sqlite3.Row
+
+        rows = connection.execute("""
+            SELECT
+                id,
+                guest_name,
+                property_id,
+                property_name,
+                check_in,
+                check_out,
+                guests,
+                status,
+                total_amount,
+                currency
+            FROM reservations
+            ORDER BY id
+        """).fetchall()
+
+        reservations = [dict(row) for row in rows]
+
+    return {"reservations": reservations}
