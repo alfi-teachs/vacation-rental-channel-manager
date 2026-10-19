@@ -1,44 +1,8 @@
-import { useMemo, useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const properties = [
-  {
-    id: 1,
-    name: "Palm Breeze Villa",
-    location: "Goa, India",
-    type: "Villa",
-    guests: 8,
-    bedrooms: 4,
-    status: "Published",
-    image:
-      "https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=900&q=85",
-    color: "mint",
-  },
-  {
-    id: 2,
-    name: "The Lakehouse",
-    location: "Udaipur, India",
-    type: "House",
-    guests: 6,
-    bedrooms: 3,
-    status: "Published",
-    image:
-      "https://images.unsplash.com/photo-1449158743715-0a90ebb6d2d8?auto=format&fit=crop&w=900&q=85",
-    color: "blue",
-  },
-  {
-    id: 3,
-    name: "Olive Garden Stay",
-    location: "Coorg, India",
-    type: "Cottage",
-    guests: 4,
-    bedrooms: 2,
-    status: "Draft",
-    image:
-      "https://images.unsplash.com/photo-1449844908441-8829872d2607?auto=format&fit=crop&w=900&q=85",
-    color: "sand",
-  },
-];
+
 
 const initialBookings = [
   {
@@ -646,57 +610,136 @@ function Overview({
   );
 }
 
-function PropertiesPage({ setActivePage }) {
+
+function PropertiesPage({
+  setActivePage,
+  properties,
+  loading,
+  error,
+}) {
   return (
     <>
       <section className="welcome-row">
         <div>
-          <div className="eyebrow"><span className="eyebrow-dot" /> YOUR PORTFOLIO</div>
+          <div className="eyebrow">
+            <span className="eyebrow-dot" /> YOUR PORTFOLIO
+          </div>
           <h1>Your properties</h1>
-          <p className="page-subtitle">Manage your stays, listing details, and availability.</p>
+          <p className="page-subtitle">
+            Manage your stays, listing details, and availability.
+          </p>
         </div>
-        <button className="primary-button" onClick={() => window.alert("Property creation will be added in a later step.")}>
+        <button
+          className="primary-button"
+          onClick={() =>
+            window.alert("Property creation will be added in a later step.")
+          }
+        >
           <Icon name="plus" size={18} /> Add property
         </button>
       </section>
+
       <div className="property-summary">
-        <div><strong>12</strong><span>Total properties</span></div>
-        <div><strong>10</strong><span>Published listings</span></div>
-        <div><strong>2</strong><span>Draft listings</span></div>
+        <div>
+          <strong>{properties.length}</strong>
+          <span>Properties returned by API</span>
+        </div>
+        <div>
+          <strong>
+            {properties.filter((p) => p.status === "Published").length}
+          </strong>
+          <span>Published listings (demo status)</span>
+        </div>
+        <div>
+          <strong>
+            {properties.filter((p) => p.status === "Draft").length}
+          </strong>
+          <span>Draft listings (demo status)</span>
+        </div>
       </div>
-      <section className="property-grid">
-        {properties.map((property) => (
-          <article className="property-card" key={property.id}>
-            <div className="property-image-wrap">
-              <img
-                src={property.image}
-                alt={property.name}
-                className="property-image"
-                loading="lazy"
-              />
-              <span className={`property-status ${property.status === "Published" ? "published" : "draft"}`}>
-                <span className="status-dot" /> {property.status}
-              </span>
-              <button className="property-menu icon-button" aria-label={`Options for ${property.name}`}>
-                <Icon name="more" />
-              </button>
-            </div>
-            <div className="property-card-body">
-              <div className="property-type">{property.type}</div>
-              <h3>{property.name}</h3>
-              <p className="property-location">{property.location}</p>
-              <div className="property-details">
-                <span><Icon name="users" size={16} /> {property.guests} guests</span>
-                <span><Icon name="home" size={16} /> {property.bedrooms} bedrooms</span>
+
+      {loading && (
+        <p role="status" className="demo-note">
+          Loading properties from the backend...
+        </p>
+      )}
+
+      {error && (
+        <p role="alert" className="demo-note">
+          Could not load properties: {error}
+        </p>
+      )}
+
+      {!loading && !error && properties.length === 0 && (
+        <p className="demo-note">No properties were returned by the API.</p>
+      )}
+
+      {!loading && !error && properties.length > 0 && (
+        <section className="property-grid">
+          {properties.map((property) => (
+            <article className="property-card" key={property.id}>
+              <div className="property-image-wrap">
+                <img
+                  src={property.image}
+                  alt={property.name}
+                  className="property-image"
+                  loading="lazy"
+                />
+                <span
+                  className={`property-status ${
+                    property.status === "Published" ? "published" : "draft"
+                  }`}
+                >
+                  <span className="status-dot" /> {property.status}
+                </span>
+                <button
+                  className="property-menu icon-button"
+                  aria-label={`Options for ${property.name}`}
+                >
+                  <Icon name="more" />
+                </button>
               </div>
-              <button className="property-manage" onClick={() => setActivePage("Calendar")}>
-                Manage property <Icon name="arrow" size={15} />
-              </button>
-            </div>
-          </article>
-        ))}
-      </section>
-      <p className="demo-note">Showing 3 sample properties. The portfolio summary uses illustrative data.</p>
+
+              <div className="property-card-body">
+                <div className="property-type">{property.type}</div>
+                <h3>{property.name}</h3>
+                <p className="property-location">{property.location}</p>
+
+                <div className="property-details">
+                  <span>
+                    <Icon name="users" size={16} /> {property.guests} guests
+                  </span>
+                  <span>
+                    <Icon name="home" size={16} /> {property.bedrooms} bedrooms
+                  </span>
+                </div>
+
+                <p className="property-location">
+                  {new Intl.NumberFormat("en-IN", {
+                    style: "currency",
+                    currency: property.currency || "INR",
+                    maximumFractionDigits: 0,
+                  }).format(property.nightly_rate)}{" "}
+                  / night
+                </p>
+
+                <button
+                  className="property-manage"
+                  onClick={() => setActivePage("Calendar")}
+                >
+                  Manage property <Icon name="arrow" size={15} />
+                </button>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
+
+      <p className="demo-note">
+        Property details are fetched from FastAPI. Listing status, guest
+        capacity, and photos are demonstration values until those fields are
+        stored in the backend.
+      </p>
     </>
   );
 }
@@ -773,10 +816,74 @@ function SimplePage({ page }) {
 }
 
 export default function App() {
+  // Existing state variables
   const [activePage, setActivePage] = useState("Overview");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [bookings, setBookings] = useState(initialBookings);
+
+  // Add the properties API state and useEffect here
+    // Properties API state
+  const [properties, setProperties] = useState([]);
+  const [loadingProperties, setLoadingProperties] = useState(true);
+  const [propertiesError, setPropertiesError] = useState("");
+
+  // Fetch properties from the FastAPI backend
+  useEffect(() => {
+    async function loadProperties() {
+      try {
+        setLoadingProperties(true);
+        setPropertiesError("");
+
+        const response = await fetch(
+          "http://127.0.0.1:8000/api/properties"
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const propertyList = data.properties;
+
+        if (!Array.isArray(propertyList)) {
+          throw new Error(
+            "The API response does not contain a properties array."
+          );
+        }
+
+        const displayImages = [
+          "https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=900&q=85",
+          "https://images.unsplash.com/photo-1449158743715-0a90ebb6d2d8?auto=format&fit=crop&w=900&q=85",
+          "https://images.unsplash.com/photo-1449844908441-8829872d2607?auto=format&fit=crop&w=900&q=85",
+        ];
+
+        const displayTypes = ["Villa", "House", "Cottage"];
+        const displayGuests = [8, 6, 4];
+
+        const formattedProperties = propertyList.map(
+          (property, index) => ({
+            ...property,
+            type: displayTypes[index % displayTypes.length],
+            guests: displayGuests[index % displayGuests.length],
+            status: index === 2 ? "Draft" : "Published",
+            image: displayImages[index % displayImages.length],
+          })
+        );
+
+        setProperties(formattedProperties);
+      } catch (error) {
+        setPropertiesError(
+          error.message || "An unexpected error occurred."
+        );
+      } finally {
+        setLoadingProperties(false);
+      }
+    }
+
+    loadProperties();
+  }, []);
+
 
   return (
     <div className="app-shell">
@@ -831,7 +938,12 @@ export default function App() {
               setSearch={setSearch}
             />
           ) : activePage === "Properties" ? (
-            <PropertiesPage setActivePage={setActivePage} />
+            <PropertiesPage
+  setActivePage={setActivePage}
+  properties={properties}
+  loading={loadingProperties}
+  error={propertiesError}
+/>
           ) : (
             <SimplePage page={activePage} />
           )}
