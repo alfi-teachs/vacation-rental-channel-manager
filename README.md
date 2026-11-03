@@ -16,19 +16,27 @@ The goal is to build a working application from scratch and progressively implem
 - Demonstrate invoices and payments using Stripe test mode.
 - Implement automated testing, Docker, CI/CD, and monitoring.
 
+## Screenshots
+
+![Dashboard with live occupancy, revenue and channel data](screenshots/dashboard.png)
+
+![The API rejects a booking that overlaps an existing stay](screenshots/double-booking-rejected.png)
+
 ## Technology Stack
 
 | Technology | Purpose | Status |
 |---|---|---|
-| React | Frontend | Initial setup complete |
+| React | Frontend | In use |
 | Vite | Frontend development server | Configured |
 | Node.js | JavaScript runtime | Installed |
 | npm | Package management | Installed |
 | Python | Backend development | Installed |
-| FastAPI | Backend API | Planned |
-| PostgreSQL | Database | Planned |
-| Docker | Containerization | Installed |
-| Git and GitHub | Version control | Git initialized |
+| FastAPI | Backend API | In use |
+| SQLite | Development database | In use |
+| PostgreSQL | Production database | Planned |
+| pytest | Backend tests | In use |
+| Docker | Containerization | Planned |
+| Git and GitHub | Version control | In use |
 | GitHub Actions | CI/CD | Planned |
 | Stripe | Test payments | Planned |
 | Prometheus and Grafana | Monitoring | Planned |
@@ -38,17 +46,44 @@ The goal is to build a working application from scratch and progressively implem
 
 ```text
 vacation-rental-channel-manager/
-├── frontend/
 ├── backend/
-├── docs/
+│   ├── main.py            # FastAPI app factory, CORS, health check
+│   ├── config.py          # Settings from environment variables / .env
+│   ├── database.py        # SQLite schema, connections, demo seed data
+│   ├── schemas.py         # Pydantic request and response models
+│   ├── routers/           # properties, reservations, stats endpoints
+│   ├── tests/             # pytest suite
+│   └── .env.example
+├── frontend/
+│   ├── src/App.jsx        # Staywise dashboard
+│   ├── src/api.js         # API client
+│   └── .env.example
 ├── screenshots/
 ├── README.md
 └── .gitignore
 ```
 
-## Run the Frontend Locally
+## Run Locally
 
-From the project root, run:
+You need Python 3.11+ and Node.js 20+.
+
+### Backend
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
+uvicorn main:app --reload
+```
+
+The API runs at http://127.0.0.1:8000. Interactive docs are at http://127.0.0.1:8000/docs.
+
+On first start the backend creates `vacation_rental.db` and seeds 3 properties with about six months of bookings around today's date. To start over, stop the server and delete the file.
+
+### Frontend
+
+In a second terminal:
 
 ```bash
 cd frontend
@@ -56,9 +91,47 @@ npm install
 npm run dev
 ```
 
-Open the local URL displayed by Vite, usually http://localhost:5173/.
+Open http://localhost:5173/.
 
-Press `Ctrl + C` to stop the development server.
+### Configuration
+
+Copy `backend/.env.example` to `backend/.env` (and `frontend/.env.example` to `frontend/.env`) to change defaults.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATABASE_PATH` | `backend/vacation_rental.db` | SQLite file location |
+| `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Frontend origins allowed to call the API |
+| `SEED_DEMO_DATA` | `true` | Insert demo data into an empty database |
+| `VITE_API_URL` | `http://127.0.0.1:8000` | Backend URL used by the dashboard |
+
+### Tests
+
+```bash
+cd backend
+pytest
+```
+
+## API
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/health` | Service and database health |
+| GET | `/api/properties` | List properties |
+| GET | `/api/properties/{id}` | One property |
+| GET | `/api/reservations` | List reservations. Filters: `status`, `property_id` |
+| GET | `/api/reservations/{id}` | One reservation |
+| POST | `/api/reservations` | Create a reservation. Returns 409 if the dates overlap an existing stay |
+| PATCH | `/api/reservations/{id}` | Change status: Pending → Confirmed / Cancelled, Confirmed → Cancelled |
+| GET | `/api/stats?month=YYYY-MM` | Occupancy, revenue, 6-month revenue trend and channel mix |
+
+Booking rules enforced by the API:
+
+- Check-out must be after check-in; stays are limited to 60 nights.
+- Two stays at the same property overlap when each starts before the other ends. The check-out day is free for the next arrival.
+- Cancelled reservations don't block dates. Cancelled is a final status.
+- Guest count can't exceed the property's capacity.
+- The total is calculated by the API from nights × nightly rate.
+- Revenue and occupancy count confirmed nights only, split across months by the night they fall on.
 
 ## Development Roadmap
 
@@ -89,29 +162,28 @@ Payment demonstrations will use Stripe test mode.
 
 ## Project Status
 
-**Current phase:** React frontend dashboard implemented; production build verified.
+**Current phase:** Dashboard connected to a working reservations API with tests. Next: Docker.
 
 ### Completed
 
-- Initialized the project repository with Git.
-- Created the React frontend using Vite.
-- Built the Staywise vacation rental dashboard with a modern, light theme.
-- Added overview metrics, a sample revenue chart, channel performance, and recent reservations.
-- Added property cards and navigation for properties, reservations, calendar, channels, guests, and settings.
-- Added responsive styling for smaller screens.
-- Verified the production build using `npm run build`.
+- React dashboard ("Staywise") with overview, reservations and properties pages.
+- FastAPI backend split into routers, schemas, config and database modules.
+- SQLite schema with constraints, foreign keys and a demo seed relative to today's date.
+- Create, confirm and cancel reservations with double-booking prevention.
+- Dashboard metrics, revenue chart and channel mix computed from real data by `/api/stats`.
+- Configuration through environment variables.
+- pytest suite covering health, listing, creation, overlap rules, status changes, validation and stats.
 
 ### Current Limitations
 
-- Dashboard data is illustrative sample data.
-- Booking channels are not connected to live Airbnb or Vrbo accounts.
-- Backend APIs, database persistence, authentication, and real booking synchronization are not implemented yet.
+- Booking channels are simulated. Nothing connects to live Airbnb or Vrbo accounts.
+- No authentication.
+- Property photos are placeholders.
+- Calendar, channels, guests and settings pages are placeholders.
 
 ### Next Steps
 
-1. Commit the verified frontend milestone.
-2. Push the project to GitHub.
-3. Build a FastAPI backend.
-4. Add PostgreSQL database persistence.
-5. Connect the frontend to the backend API.
-6. Add tests, Docker, CI/CD, security checks, and monitoring.
+1. Dockerfiles for backend and frontend, and docker-compose with PostgreSQL.
+2. GitHub Actions: run tests, build and push images.
+3. Kubernetes manifests, Prometheus metrics and Grafana dashboards.
+4. Terraform for AWS.
