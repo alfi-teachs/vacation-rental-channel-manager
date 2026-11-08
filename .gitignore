@@ -34,4 +34,4 @@ desktop.ini
 
 # Logs
 *.log
-backend/vacation_rental.db
+*.db

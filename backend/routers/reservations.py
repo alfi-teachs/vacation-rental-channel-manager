@@ -1,5 +1,4 @@
-import sqlite3
-
+import psycopg
 from fastapi import APIRouter, HTTPException, Query
 
 from database import get_connection
@@ -11,8 +10,9 @@ SELECT_RESERVATION = """
     SELECT
         r.id, r.property_id, p.name AS property_name, r.guest_name, r.channel,
         r.check_in, r.check_out,
-        CAST(julianday(r.check_out) - julianday(r.check_in) AS INTEGER) AS nights,
-        r.guests, r.status, r.total_amount, r.currency, r.created_at
+        (r.check_out - r.check_in) AS nights,
+        r.guests, r.status, r.total_amount, r.currency,
+        to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS') AS created_at
     FROM reservations r
     JOIN properties p ON p.id = r.property_id
 """
@@ -25,9 +25,9 @@ TRANSITIONS: dict[str, set[str]] = {
 }
 
 
-def _fetch(connection: sqlite3.Connection, reservation_id: int) -> Reservation | None:
+def _fetch(connection: psycopg.Connection, reservation_id: int) -> Reservation | None:
     row = connection.execute(
-        SELECT_RESERVATION + " WHERE r.id = ?", (reservation_id,)
+        SELECT_RESERVATION + " WHERE r.id = %s", (reservation_id,)
     ).fetchone()
     return Reservation(**dict(row)) if row else None
 
@@ -39,10 +39,10 @@ def list_reservations(
 ) -> dict[str, list[Reservation]]:
     clauses, params = [], []
     if status:
-        clauses.append("r.status = ?")
+        clauses.append("r.status = %s")
         params.append(status)
     if property_id:
-        clauses.append("r.property_id = ?")
+        clauses.append("r.property_id = %s")
         params.append(property_id)
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
 
@@ -65,12 +65,13 @@ def get_reservation(reservation_id: int) -> Reservation:
 @router.post("", status_code=201)
 def create_reservation(payload: ReservationCreate) -> Reservation:
     with get_connection() as connection:
-        # Take the write lock before checking availability so two requests
-        # can't both pass the overlap check and double-book the same nights.
-        connection.execute("BEGIN IMMEDIATE")
-
+        # Lock this property's row before checking availability. A second booking
+        # for the same property waits here until this transaction commits, so two
+        # requests can't both pass the overlap check and double-book the same nights.
+        # Bookings for other properties are not blocked.
         prop = connection.execute(
-            "SELECT id, name, max_guests, nightly_rate, currency FROM properties WHERE id = ?",
+            "SELECT id, name, max_guests, nightly_rate, currency FROM properties "
+            "WHERE id = %s FOR UPDATE",
             (payload.property_id,),
         ).fetchone()
         if prop is None:
@@ -87,14 +88,14 @@ def create_reservation(payload: ReservationCreate) -> Reservation:
         conflict = connection.execute(
             """
             SELECT id, check_in, check_out FROM reservations
-            WHERE property_id = ?
+            WHERE property_id = %s
               AND status != 'Cancelled'
-              AND check_in < ?
-              AND check_out > ?
+              AND check_in < %s
+              AND check_out > %s
             ORDER BY check_in
             LIMIT 1
             """,
-            (payload.property_id, payload.check_out.isoformat(), payload.check_in.isoformat()),
+            (payload.property_id, payload.check_out, payload.check_in),
         ).fetchone()
         if conflict:
             raise HTTPException(
@@ -102,31 +103,32 @@ def create_reservation(payload: ReservationCreate) -> Reservation:
                 detail={
                     "message": f"{prop['name']} is already booked for some of these nights",
                     "conflicting_reservation_id": conflict["id"],
-                    "conflicting_dates": [conflict["check_in"], conflict["check_out"]],
+                    "conflicting_dates": [conflict["check_in"].isoformat(), conflict["check_out"].isoformat()],
                 },
             )
 
         nights = (payload.check_out - payload.check_in).days
-        cursor = connection.execute(
+        new_id = connection.execute(
             """
             INSERT INTO reservations
                 (property_id, guest_name, channel, check_in, check_out,
                  guests, status, total_amount, currency)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
             """,
             (
                 payload.property_id,
                 payload.guest_name,
                 payload.channel,
-                payload.check_in.isoformat(),
-                payload.check_out.isoformat(),
+                payload.check_in,
+                payload.check_out,
                 payload.guests,
                 payload.status,
                 nights * prop["nightly_rate"],
                 prop["currency"],
             ),
-        )
-        return _fetch(connection, cursor.lastrowid)
+        ).fetchone()["id"]
+        return _fetch(connection, new_id)
 
 
 @router.patch("/{reservation_id}")
@@ -146,7 +148,7 @@ def update_reservation(reservation_id: int, payload: ReservationUpdate) -> Reser
             )
 
         connection.execute(
-            "UPDATE reservations SET status = ? WHERE id = ?",
+            "UPDATE reservations SET status = %s WHERE id = %s",
             (payload.status, reservation_id),
         )
         return _fetch(connection, reservation_id)

@@ -23,7 +23,7 @@ def list_properties() -> dict[str, list[Property]]:
 def get_property(property_id: int) -> Property:
     with get_connection() as connection:
         row = connection.execute(
-            f"SELECT {PROPERTY_COLUMNS} FROM properties WHERE id = ?", (property_id,)
+            f"SELECT {PROPERTY_COLUMNS} FROM properties WHERE id = %s", (property_id,)
         ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="Property not found")

@@ -145,3 +145,21 @@ def test_demo_seed_has_no_double_bookings(seeded_client):
     stats = seeded_client.get("/api/stats").json()
     assert stats["month"] == date.today().strftime("%Y-%m")
     assert stats["properties"] == 3
+
+
+def test_concurrent_requests_cannot_double_book(client):
+    """Fire the same booking 10 times at once: exactly one may succeed.
+
+    Without the row lock (SELECT ... FOR UPDATE) several requests can pass the
+    overlap check before any of them inserts, and the property gets double-booked.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        codes = list(pool.map(
+            lambda i: client.post("/api/reservations", json=booking(guest_name=f"Guest {i}")).status_code,
+            range(10),
+        ))
+
+    assert sorted(codes) == [201] + [409] * 9
+    assert len(client.get("/api/reservations").json()["reservations"]) == 1

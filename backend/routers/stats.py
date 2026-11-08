@@ -77,31 +77,25 @@ def get_stats(month: str | None = Query(default=None, description="YYYY-MM, defa
     today = date.today()
 
     with get_connection() as connection:
-        property_count = connection.execute("SELECT COUNT(*) FROM properties").fetchone()[0]
+        property_count = connection.execute("SELECT COUNT(*) AS n FROM properties").fetchone()["n"]
         raw = connection.execute(
             """
             SELECT channel, check_in, check_out, status, total_amount
             FROM reservations
-            WHERE check_out > ? AND check_in < ?
+            WHERE check_out > %s AND check_in < %s
             """,
-            (min(trend_start, previous_start).isoformat(), end.isoformat()),
+            (min(trend_start, previous_start), end),
         ).fetchall()
         active = connection.execute(
-            "SELECT COUNT(*) FROM reservations WHERE status = 'Confirmed' AND check_out >= ?",
-            (today.isoformat(),),
-        ).fetchone()[0]
+            "SELECT COUNT(*) AS n FROM reservations WHERE status = 'Confirmed' AND check_out >= %s",
+            (today,),
+        ).fetchone()["n"]
         pending = connection.execute(
-            "SELECT COUNT(*) FROM reservations WHERE status = 'Pending'"
-        ).fetchone()[0]
+            "SELECT COUNT(*) AS n FROM reservations WHERE status = 'Pending'"
+        ).fetchone()["n"]
 
-    rows = [
-        {
-            **dict(row),
-            "check_in": date.fromisoformat(row["check_in"]),
-            "check_out": date.fromisoformat(row["check_out"]),
-        }
-        for row in raw
-    ]
+    # Postgres DATE columns come back as Python date objects, so no parsing is needed.
+    rows = raw
 
     current = _summarize(rows, property_count, start)
     previous = _summarize(rows, property_count, previous_start)

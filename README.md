@@ -32,10 +32,9 @@ The goal is to build a working application from scratch and progressively implem
 | npm | Package management | Installed |
 | Python | Backend development | Installed |
 | FastAPI | Backend API | In use |
-| SQLite | Development database | In use |
-| PostgreSQL | Production database | Planned |
+| PostgreSQL 16 | Database | In use |
 | pytest | Backend tests | In use |
-| Docker | Containerization | Planned |
+| Docker + docker-compose | Containerization | In use |
 | Git and GitHub | Version control | In use |
 | GitHub Actions | CI/CD | Planned |
 | Stripe | Test payments | Planned |
@@ -49,7 +48,7 @@ vacation-rental-channel-manager/
 ├── backend/
 │   ├── main.py            # FastAPI app factory, CORS, health check
 │   ├── config.py          # Settings from environment variables / .env
-│   ├── database.py        # SQLite schema, connections, demo seed data
+│   ├── database.py        # PostgreSQL schema, connections, demo seed data
 │   ├── schemas.py         # Pydantic request and response models
 │   ├── routers/           # properties, reservations, stats endpoints
 │   ├── tests/             # pytest suite
@@ -65,7 +64,16 @@ vacation-rental-channel-manager/
 
 ## Run Locally
 
-You need Python 3.11+ and Node.js 20+.
+You need Python 3.11+, Node.js 20+ and Docker (for PostgreSQL).
+
+The quickest way to run everything is `docker compose up -d --build` from the project root, then open http://localhost:8080. See [docs/01-docker.md](docs/01-docker.md).
+
+### Database
+
+```bash
+cp .env.example .env            # set a password
+docker compose up -d db         # PostgreSQL on localhost:5432
+```
 
 ### Backend
 
@@ -79,7 +87,7 @@ uvicorn main:app --reload
 
 The API runs at http://127.0.0.1:8000. Interactive docs are at http://127.0.0.1:8000/docs.
 
-On first start the backend creates `vacation_rental.db` and seeds 3 properties with about six months of bookings around today's date. To start over, stop the server and delete the file.
+On first start the backend creates the tables and seeds 3 properties with about six months of bookings around today's date. To start over, run `docker compose down -v` (this deletes the database volume).
 
 ### Frontend
 
@@ -99,14 +107,17 @@ Copy `backend/.env.example` to `backend/.env` (and `frontend/.env.example` to `f
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `DATABASE_PATH` | `backend/vacation_rental.db` | SQLite file location |
+| `DATABASE_URL` | `postgresql://vrcm:vrcm@localhost:5432/vrcm` | PostgreSQL connection string |
 | `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Frontend origins allowed to call the API |
 | `SEED_DEMO_DATA` | `true` | Insert demo data into an empty database |
 | `VITE_API_URL` | `http://127.0.0.1:8000` | Backend URL used by the dashboard |
 
 ### Tests
 
+The tests use a real PostgreSQL database (`TEST_DATABASE_URL`, default `postgresql://vrcm:vrcm@localhost:5432/vrcm_test`). Each test drops and recreates the tables, so use a separate database:
+
 ```bash
+docker compose exec db createdb -U vrcm vrcm_test
 cd backend
 pytest
 ```
@@ -162,17 +173,18 @@ Payment demonstrations will use Stripe test mode.
 
 ## Project Status
 
-**Current phase:** Dashboard connected to a working reservations API with tests. Next: Docker.
+**Current phase:** Running in docker-compose with PostgreSQL. Next: GitHub Actions CI.
 
 ### Completed
 
 - React dashboard ("Staywise") with overview, reservations and properties pages.
 - FastAPI backend split into routers, schemas, config and database modules.
-- SQLite schema with constraints, foreign keys and a demo seed relative to today's date.
-- Create, confirm and cancel reservations with double-booking prevention.
+- PostgreSQL schema with constraints, foreign keys and a demo seed relative to today's date.
+- Create, confirm and cancel reservations with double-booking prevention (row lock with `SELECT ... FOR UPDATE`, covered by a concurrency test).
 - Dashboard metrics, revenue chart and channel mix computed from real data by `/api/stats`.
 - Configuration through environment variables.
-- pytest suite covering health, listing, creation, overlap rules, status changes, validation and stats.
+- pytest suite (20 tests) covering health, listing, creation, overlap rules, concurrent double-booking, status changes, validation and stats.
+- Docker images for backend and frontend, and docker-compose with an nginx reverse proxy and PostgreSQL.
 
 ### Current Limitations
 
