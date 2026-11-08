@@ -36,7 +36,8 @@ The goal is to build a working application from scratch and progressively implem
 | pytest | Backend tests | In use |
 | Docker + docker-compose | Containerization | In use |
 | Git and GitHub | Version control | In use |
-| GitHub Actions | CI/CD | Planned |
+| GitHub Actions | CI/CD | In use |
+| Trivy | Container image vulnerability scanning | In use |
 | Stripe | Test payments | Planned |
 | Prometheus and Grafana | Monitoring | Planned |
 | Terraform and AWS | Optional cloud deployment | Planned |
@@ -66,7 +67,7 @@ vacation-rental-channel-manager/
 
 You need Python 3.11+, Node.js 20+ and Docker (for PostgreSQL).
 
-The quickest way to run everything is `docker compose up -d --build` from the project root, then open http://localhost:8080. See [docs/01-docker.md](docs/01-docker.md).
+The quickest way to run everything is `docker compose up -d --build` from the project root, then open http://localhost:8080. See [docs/01-docker.md](docs/01-docker.md) and, for the CI pipeline, [docs/02-ci.md](docs/02-ci.md).
 
 ### Database
 
@@ -173,7 +174,7 @@ Payment demonstrations will use Stripe test mode.
 
 ## Project Status
 
-**Current phase:** Running in docker-compose with PostgreSQL. Next: GitHub Actions CI.
+**Current phase:** GitHub Actions CI/CD running on every push and pull request. Next: Kubernetes.
 
 ### Completed
 
@@ -185,6 +186,7 @@ Payment demonstrations will use Stripe test mode.
 - Configuration through environment variables.
 - pytest suite (20 tests) covering health, listing, creation, overlap rules, concurrent double-booking, status changes, validation and stats.
 - Docker images for backend and frontend, and docker-compose with an nginx reverse proxy and PostgreSQL.
+- GitHub Actions CI: backend tests against a real PostgreSQL service container, frontend lint and build, and a job that builds, Trivy-scans and pushes both images to GitHub Container Registry on pushes to `main`. See [docs/02-ci.md](docs/02-ci.md).
 
 ### Current Limitations
 
@@ -195,7 +197,7 @@ Payment demonstrations will use Stripe test mode.
 
 ### Next Steps
 
-1. Dockerfiles for backend and frontend, and docker-compose with PostgreSQL.
-2. GitHub Actions: run tests, build and push images.
-3. Kubernetes manifests, Prometheus metrics and Grafana dashboards.
+1. Kubernetes manifests (minikube) and a Helm chart.
+2. Argo CD (GitOps).
+3. Prometheus metrics and Grafana dashboards.
 4. Terraform for AWS.
