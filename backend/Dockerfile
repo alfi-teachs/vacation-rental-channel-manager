@@ -4,8 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DATABASE_PATH=/data/vacation_rental.db \
     CORS_ORIGINS=http://localhost:5173
 
-RUN useradd --create-home --uid 1000 appuser\
-&& mkdir /data && chown appuser:appuser /data
+RUN useradd --create-home --uid 1000 appuser
 
 WORKDIR /app
 COPY requirements.txt .
