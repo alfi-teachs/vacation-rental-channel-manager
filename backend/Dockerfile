@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DATABASE_PATH=/data/vacation_rental.db \
+    
     CORS_ORIGINS=http://localhost:5173
 
 RUN useradd --create-home --uid 1000 appuser

@@ -1,6 +1,6 @@
 # Part 1 — Containerizing the Vacation Rental Channel Manager
 
-Step-by-step log of how this app (React 19 + FastAPI + SQLite) went from "runs on my laptop" to "runs in containers". Each step lists the files, the commands, the reasoning behind them, and the bugs I hit along the way.
+Step-by-step log of how this app (React 19 + FastAPI, first on SQLite, now PostgreSQL) went from "runs on my laptop" to "runs in containers". Each step lists the files, the commands, the reasoning behind them, and the bugs I hit along the way.
 
 **DevOps roadmap**
 
@@ -9,7 +9,7 @@ Step-by-step log of how this app (React 19 + FastAPI + SQLite) went from "runs o
 | 1 | Docker — backend image | ✅ Done |
 | 2 | Docker — frontend multi-stage image | ✅ Done |
 | 3a | docker-compose + nginx reverse proxy (SQLite) | ✅ Done |
-| 3b | Switch SQLite → PostgreSQL | ⏳ Planned |
+| 3b | Switch SQLite → PostgreSQL | ✅ Done |
 | 4 | GitHub Actions CI (test, Trivy scan, push to registry) | ⏳ Planned |
 | 5 | Kubernetes on minikube | ⏳ Planned |
 | 6 | Helm chart | ⏳ Planned |
@@ -379,6 +379,155 @@ git push
 
 ---
 
+## Step 3b — Switch SQLite → PostgreSQL
+
+**Why:** SQLite is a single file and allows one writer at a time. That's fine on one laptop, but it can't be shared by several backend replicas (Kubernetes, Step 5) and it isn't what production runs. PostgreSQL is a separate database server that many app instances can connect to over the network.
+
+**Split of work:** the app-code changes (about 190 lines across 11 files) came in as a patch. The DevOps part (compose service, healthcheck, secrets, Dockerfile) I did by hand.
+
+### 3b.1 App-code changes (applied as a patch)
+
+```bash
+git am "/c/Users/almal/Downloads/0001-Switch-backend-from-SQLite-to-PostgreSQL.patch"
+```
+
+| SQLite (before) | PostgreSQL (after) | Why |
+|---|---|---|
+| `sqlite3` module | `psycopg[binary]==3.3.8` | Postgres driver for Python |
+| `DATABASE_PATH` (a file) | `DATABASE_URL` (`postgresql://user:pass@host:5432/db`) | The DB is now a network service, not a file |
+| `?` placeholders | `%s` placeholders | psycopg's parameter style. Values are still sent separately, never pasted into SQL (no SQL injection). |
+| Dates stored as `TEXT` | `DATE` and `TIMESTAMPTZ` columns | Real types: the DB validates them and can do date maths (`check_out - check_in` = nights) |
+| `cursor.lastrowid` | `INSERT ... RETURNING id` | Postgres returns the new id in the same statement |
+| `BEGIN IMMEDIATE` (locks the **whole database**) | `SELECT ... FOR UPDATE` on the property row (locks **one property**) | Two bookings for the same property queue up; bookings for different properties don't block each other |
+| `PRAGMA user_version` | `schema_meta` table + `pg_advisory_xact_lock` | Tracks the schema version. The advisory lock stops several replicas from creating tables at the same moment. |
+| Tests on a temp SQLite file | Tests on a real Postgres (`TEST_DATABASE_URL`) | Test against the same database you run in production |
+
+**New test: concurrent double-booking.** It fires the same booking 10 times at once and expects exactly one `201` and nine `409`s. With `FOR UPDATE` removed, the test caught the double-booking in 1 of 3 runs (races depend on timing). With the lock, it passes every time. Result: **20 tests passing** on PostgreSQL 16.
+
+### 3b.2 Clean up `backend/Dockerfile`
+
+SQLite needed a `/data` folder and `DATABASE_PATH`. Postgres needs neither:
+
+```dockerfile
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    CORS_ORIGINS=http://localhost:5173
+
+RUN useradd --create-home --uid 1000 appuser
+```
+
+### 3b.3 Secrets in `.env`
+
+```bash
+printf "POSTGRES_USER=vrcm\nPOSTGRES_PASSWORD=change-me\nPOSTGRES_DB=vrcm\n" > .env.example
+cp .env.example .env
+git status      # .env must NOT be listed
+```
+
+- Compose automatically reads `.env` from the project root and fills in `${POSTGRES_PASSWORD}` etc.
+- `.env` is in `.gitignore`, so the real password never reaches GitHub. Only `.env.example` (placeholder values) is committed.
+- In Kubernetes this becomes a **Secret**; on AWS, Secrets Manager.
+
+### 3b.4 Add the `db` service to `docker-compose.yml`
+
+```yaml
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    image: vrcm-backend:0.3
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    image: vrcm-frontend:0.3
+    ports:
+      - "8080:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  db-data:
+```
+
+| Setting | Reason |
+|---|---|
+| `postgres:16-alpine` (pinned) | Never `latest` for a database: a major-version jump can make existing data files unreadable. |
+| `pg_isready` healthcheck | Postgres's own readiness check. "Container running" ≠ "database accepting connections". |
+| `$$` in the healthcheck | `$$` escapes `$`, so the variable is read **inside the container** at check time instead of being filled in by compose. |
+| `@db:5432` in `DATABASE_URL` | `db` is the service name: compose DNS again. |
+| `db` has no `ports:` | Only the backend can reach the database. |
+| `db-data` volume at `/var/lib/postgresql/data` | Where Postgres stores its files. Data survives `docker compose down`. |
+| Chain `db → backend → frontend` | Each waits for the previous one's healthcheck. |
+
+### 3b.5 Run and verify
+
+```bash
+docker compose config | grep DATABASE_URL     # password filled in from .env
+docker compose down -v                        # remove the old SQLite volume
+docker compose up -d --build
+docker compose ps
+docker compose exec db psql -U vrcm -d vrcm -c "SELECT COUNT(*) FROM reservations;"
+```
+
+### 3b.6 Results (verified)
+
+`docker compose config` → `DATABASE_URL: postgresql://vrcm:change-me@db:5432/vrcm` (`.env` was read).
+
+`docker compose ps`:
+```
+NAME                                         IMAGE                STATUS                    PORTS
+vacation-rental-channel-manager-db-1         postgres:16-alpine   Up 19 seconds (healthy)   5432/tcp
+vacation-rental-channel-manager-backend-1    vrcm-backend:0.3     Up 13 seconds (healthy)   8000/tcp
+vacation-rental-channel-manager-frontend-1   vrcm-frontend:0.3    Up 5 seconds              0.0.0.0:8080->8080/tcp
+```
+
+| Check | Result | What it proves |
+|---|---|---|
+| Uptimes 19 s → 13 s → 5 s | db, then backend, then frontend | The healthcheck chain controls startup order |
+| Ports column | Only `8080` published; `5432` and `8000` internal | DB and API are private |
+| `psql ... SELECT COUNT(*) FROM reservations` | `83` | Seed data lives in PostgreSQL, checked directly in the DB, not through the app |
+| pytest | 20 passed | App works on Postgres, including the concurrency test |
+
+### 3b.7 Bugs / gotchas
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `git am` → `could not open '<path find printed>'` | Typed the placeholder literally; patch also hadn't been downloaded | Download the file, then use the real path `find` prints |
+| `git status`: "You are in the middle of an am session" | Ran `git am` a second time; the patch was already applied | `git am --quit` (clears the session, keeps commits). Not `--abort`, which rewinds the branch to where that `git am` started. |
+| `grep DATABASE_URL` printed nothing | `docker-compose.yml` was still the old version | Check the file with `cat` before debugging further |
+
+### 3b.8 Commit
+
+```bash
+git add backend/Dockerfile docker-compose.yml .env.example
+git commit -m "Add PostgreSQL to docker-compose with healthcheck and env-based secrets"
+git push
+```
+
+---
+
 ## Interview Q&A
 
 **Why copy `requirements.txt` / `package.json` before the rest of the code?**
@@ -407,3 +556,18 @@ Compose creates a network with built-in DNS. Each service name resolves to its c
 
 **What does `HEALTHCHECK` do, and why does compose care?**
 Docker runs the command periodically and marks the container `healthy` or `unhealthy`. `depends_on: condition: service_healthy` uses that status so the frontend starts only when the API is actually ready, not just started.
+
+**Why move from SQLite to PostgreSQL?**
+SQLite is a file with one writer at a time, so several backend replicas can't share it. PostgreSQL is a server that many app instances connect to over the network, handles concurrent writes, and is what production runs.
+
+**How do you prevent double-booking when two requests arrive at the same moment?**
+Inside one transaction, `SELECT ... FOR UPDATE` locks the property's row, then the code checks for overlapping stays and inserts. A second request for the same property waits at the lock until the first commits, then sees the new booking and gets a 409. Other properties aren't blocked. A concurrency test fires 10 identical requests and asserts exactly one succeeds. (An alternative is a Postgres exclusion constraint on the date range, which enforces it in the schema itself.)
+
+**How do you handle the database password?**
+It lives in a `.env` file that's gitignored; compose substitutes it into the containers. Only `.env.example` with placeholder values is committed. In Kubernetes it moves to a Secret, and on AWS to Secrets Manager.
+
+**Why not use `postgres:latest`?**
+A new major version can't read the old version's data files without an upgrade step. Pinning `16-alpine` means a rebuild never silently changes the database version.
+
+**What does `depends_on: condition: service_healthy` not guarantee?**
+It only controls startup order. If the database restarts later, the backend's requests fail until it's back; the backend's `/health` checks the DB, so Docker marks it unhealthy meanwhile. Kubernetes has no `depends_on` at all, so apps should retry connections on their own.
