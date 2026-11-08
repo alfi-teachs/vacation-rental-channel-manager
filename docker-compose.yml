@@ -1,0 +1,21 @@
+
+services:
+  backend:
+    build: ./backend
+    image: vrcm-backend:0.2
+    volumes:
+      - backend-data:/data
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    image: vrcm-frontend:0.2
+    ports:
+      - "8080:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  backend-data:
