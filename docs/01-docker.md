@@ -8,7 +8,7 @@ Step-by-step log of how this app (React 19 + FastAPI + SQLite) went from "runs o
 |---|---|---|
 | 1 | Docker — backend image | ✅ Done |
 | 2 | Docker — frontend multi-stage image | ✅ Done |
-| 3a | docker-compose + nginx reverse proxy (SQLite) | 🚧 In progress |
+| 3a | docker-compose + nginx reverse proxy (SQLite) | ✅ Done |
 | 3b | Switch SQLite → PostgreSQL | ⏳ Planned |
 | 4 | GitHub Actions CI (test, Trivy scan, push to registry) | ⏳ Planned |
 | 5 | Kubernetes on minikube | ⏳ Planned |
@@ -239,7 +239,7 @@ git push
 
 ---
 
-## Step 3a — docker-compose + nginx reverse proxy 🚧
+## Step 3a — docker-compose + nginx reverse proxy
 
 **Problem with Step 2:** two manual `docker run` commands, a CORS flag, and an API URL baked into the image. That breaks "build once, deploy everywhere": dev, staging and prod would each need a different frontend image.
 
@@ -341,7 +341,35 @@ Open `http://localhost:8080`.
 3. **Persistence:** `docker compose down` then `up -d`: data survives. `docker compose down -v`: the volume is deleted, and the data with it.
 4. **Logs:** `docker compose logs -f backend`, then click around the dashboard.
 
-### 3.6 Commit (once verified)
+### 3.6 Results (verified)
+
+`docker compose config` validated the file and showed what compose adds automatically: a private network (`vacation-rental-channel-manager_default`) and a project-prefixed volume (`vacation-rental-channel-manager_backend-data`).
+
+`docker compose ps`:
+```
+NAME                                         IMAGE               STATUS                    PORTS
+vacation-rental-channel-manager-backend-1    vrcm-backend:0.2    Up 22 seconds (healthy)   8000/tcp
+vacation-rental-channel-manager-frontend-1   vrcm-frontend:0.2   Up 16 seconds             0.0.0.0:8080->8080/tcp
+```
+
+| Check | Result | What it proves |
+|---|---|---|
+| `curl localhost:8080/api/stats` | Returned stats JSON | nginx proxies `/api` to `backend:8000` over the compose network |
+| `curl localhost:8000/health` | `Failed to connect` | Backend is private: `8000/tcp` (internal only) vs frontend's `0.0.0.0:8080->8080` (published) |
+| Startup order | Backend `Healthy` at 6.0 s, frontend `Started` at 6.2 s | `depends_on: condition: service_healthy` waits for the HEALTHCHECK |
+| `docker compose down` | Removed 2 containers + network (3 items), **volume kept** | Data survives container removal |
+| `docker compose down -v` | Removed 2 containers + network + **volume** (4 items) | `-v` deletes named volumes, so data is reset to seed data |
+| Old `vrcm-data` booking | Not visible in compose | Compose created its own project-prefixed volume |
+
+### 3.7 Bugs I hit
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Hand-typed `docker-compose.yml` invalid | `build:` at the same level as `backend:`; `image`/`volumes`/`restart` nested under `build:`; empty frontend `build:`; DB volume attached to frontend; no top-level `volumes:` | Indentation defines structure in YAML: 2 spaces per level. Validate with `docker compose config` before `up`. |
+| Stray `Dockerfile` in project root | Ran `echo ... >> Dockerfile` from the wrong folder, so `>>` created a new file | Run `pwd` before any command that writes or deletes files. |
+| `failed to connect to the docker API at npipe:...` | Docker Desktop not running. (`docker compose config` still worked because it only reads the file.) | Start Docker Desktop and wait for "Engine running". |
+
+### 3.8 Commit
 
 ```bash
 git add frontend/nginx.conf frontend/Dockerfile docker-compose.yml
@@ -367,6 +395,12 @@ Each environment would need its own image, which breaks "build once, deploy ever
 
 **What is CORS?**
 The browser enforcing which origins may call an API. Different port = different origin. It's enforced only by browsers (curl ignores it), and it's fixed on the server by allowing the origin, or avoided by serving everything from one origin.
+
+**What is a reverse proxy?**
+A server in front of backend services that receives every client request and forwards it to the right service. Here, users only connect to nginx on 8080. nginx serves the React files and forwards `/api` to the backend on 8000 inside the Docker network. The backend has no published port, so users can't reach it directly. One origin means no CORS. In Kubernetes, an Ingress controller does the same job. (A *forward* proxy is the opposite: it sits in front of clients, like a corporate proxy or VPN.)
+
+**What happens to data on `docker compose down` vs `down -v`?**
+Containers are disposable. `down` removes containers and networks but keeps named volumes, so new containers reattach to the same data. `down -v` also deletes the volumes, and the data with them.
 
 **How do containers in compose find each other?**
 Compose creates a network with built-in DNS. Each service name resolves to its container's IP, so nginx reaches the backend at `http://backend:8000`.
