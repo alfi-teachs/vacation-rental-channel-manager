@@ -8,30 +8,39 @@ on:
       - main
 
 jobs:
-  build:
+  backend-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: vrcm
+          POSTGRES_PASSWORD: vrcm
+          POSTGRES_DB: vrcm_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vrcm -d vrcm_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend
     steps:
-      - name: before checkout 
-        run:
-          ls -la
-          python3 --version
-
       - name: Download my code
         uses: actions/checkout@v7
 
-      - name: After checkout
-        run:
-          ls -la
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - name: Install backend packages
+      - name: Install dependencies
         run: |
-          python --version
-          cd backend
           pip install -r requirements-dev.txt
-          pip list
 
-           
-              
+      - name: Run tests
+        env:
+          TEST_DATABASE_URL: postgresql://vrcm:vrcm@localhost:5432/vrcm_test
+        run: |
+          pytest -v
