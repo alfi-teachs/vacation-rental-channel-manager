@@ -6,15 +6,32 @@ on:
   pull_request:
     branches:
       - main
+
 jobs:
-  hello:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: hello world job
-        run: echo "Hello world!"
-      - name: Show where I am
-        run: |
-          pwd
-          whoami
+      - name: before checkout 
+        run:
           ls -la
-      
+          python3 --version
+
+      - name: Download my code
+        uses: actions/checkout@v7
+
+      - name: After checkout
+        run:
+          ls -la
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install backend packages
+        run: |
+          python -version
+          cd backend
+          pip install -r requirements-dev.txt
+          pip list
+
+           
+              
