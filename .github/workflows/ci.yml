@@ -12,10 +12,9 @@ jobs:
     steps:
       - name: hello world job
         run: echo "Hello world!"
-      - name: show where i am
-        run: 
-            pwd
-             whoami
-             ls 
-             
+      - name: Show where I am
+        run: |
+          pwd
+          whoami
+          ls -la
       
