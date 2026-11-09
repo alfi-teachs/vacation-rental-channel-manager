@@ -13,7 +13,8 @@ jobs:
       - name: hello world job
         run: echo "Hello world!"
       - name: show where i am
-        run: pwd
+        run: 
+            pwd
              whoami
              la -la  
       
