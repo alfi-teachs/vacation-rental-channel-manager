@@ -16,5 +16,6 @@ jobs:
         run: 
             pwd
              whoami
-             la -la  
+             ls 
+             
       
