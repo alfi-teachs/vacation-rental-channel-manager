@@ -28,7 +28,7 @@ jobs:
           python-version: '3.12'
       - name: Install backend packages
         run: |
-          python -version
+          python --version
           cd backend
           pip install -r requirements-dev.txt
           pip list
