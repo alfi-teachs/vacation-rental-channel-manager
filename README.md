@@ -37,7 +37,7 @@ The goal is to build a working application from scratch and progressively implem
 | Docker + docker-compose | Containerization | In use |
 | Git and GitHub | Version control | In use |
 | GitHub Actions | CI/CD | In use |
-| Trivy | Container image vulnerability scanning | In use |
+| Trivy | Container image vulnerability scanning | Planned (being re-added to CI) |
 | Stripe | Test payments | Planned |
 | Prometheus and Grafana | Monitoring | Planned |
 | Terraform and AWS | Optional cloud deployment | Planned |
@@ -174,7 +174,7 @@ Payment demonstrations will use Stripe test mode.
 
 ## Project Status
 
-**Current phase:** GitHub Actions CI/CD running on every push and pull request. Next: Kubernetes.
+**Current phase:** Rebuilding GitHub Actions CI step by step (tests, lint, image build done; Trivy scan and GHCR push next). Then Kubernetes and Argo CD (GitOps).
 
 ### Completed
 
@@ -186,7 +186,7 @@ Payment demonstrations will use Stripe test mode.
 - Configuration through environment variables.
 - pytest suite (20 tests) covering health, listing, creation, overlap rules, concurrent double-booking, status changes, validation and stats.
 - Docker images for backend and frontend, and docker-compose with an nginx reverse proxy and PostgreSQL.
-- GitHub Actions CI: backend tests against a real PostgreSQL service container, frontend lint and build, and a job that builds, Trivy-scans and pushes both images to GitHub Container Registry on pushes to `main`. See [docs/02-ci.md](docs/02-ci.md).
+- GitHub Actions CI, being rebuilt step by step. Currently: backend tests against a real PostgreSQL service container, frontend lint and build (both in parallel, with dependency caching), then a matrix job that builds the backend and frontend Docker images tagged with the commit SHA. Trivy scanning and pushing to GitHub Container Registry come next. See the rebuild log in [docs/02-ci.md](docs/02-ci.md#rebuild-log).
 
 ### Current Limitations
 
