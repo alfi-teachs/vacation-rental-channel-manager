@@ -1,203 +1,176 @@
-# Vacation Rental Channel Manager
+# E-12-LAB-EC2-AMI-Backup-Restore-
+This project demonstrates how to create an Amazon EC2 instance, configure a web server, generate an Amazon Machine Image (AMI) as a backup, and launch a new instance from that AMI.
 
-## Project Overview
 
-The Vacation Rental Channel Manager is a portfolio application inspired by property management systems used to manage vacation rental listings, reservations, pricing, and availability across multiple booking channels.
+# 🎯 Objectives
+Launch EC2 instance (t2.micro)
+Install and configure Apache (httpd)
+Create sample files
+Create AMI (backup of instance)
+Launch a new EC2 instance from AMI
+Verify data and configuration persistence
 
-The goal is to build a working application from scratch and progressively implement DevOps practices.
+# 🏗️ Architecture
+```bash
 
-## Project Objectives
+EC2 (t2.micro)
+   │
+   ├── Apache Installed
+   ├── Test Files Created
+   │
+   ▼
+AMI (Backup Image)
+   │
+   ▼
+EC2 (t3.micro from AMI)
 
-- Build a property management dashboard.
-- Manage properties and reservations.
-- Track calendar availability, nightly rates, and minimum-stay rules.
-- Simulate synchronization with Airbnb and Vrbo.
-- Build an owner portal.
-- Demonstrate invoices and payments using Stripe test mode.
-- Implement automated testing, Docker, CI/CD, and monitoring.
 
-## Screenshots
-
-![Dashboard with live occupancy, revenue and channel data](screenshots/dashboard.png)
-
-![The API rejects a booking that overlaps an existing stay](screenshots/double-booking-rejected.png)
-
-## Technology Stack
-
-| Technology | Purpose | Status |
-|---|---|---|
-| React | Frontend | In use |
-| Vite | Frontend development server | Configured |
-| Node.js | JavaScript runtime | Installed |
-| npm | Package management | Installed |
-| Python | Backend development | Installed |
-| FastAPI | Backend API | In use |
-| PostgreSQL 16 | Database | In use |
-| pytest | Backend tests | In use |
-| Docker + docker-compose | Containerization | In use |
-| Git and GitHub | Version control | In use |
-| GitHub Actions | CI/CD | In use |
-| Trivy | Container image vulnerability scanning | Planned (being re-added to CI) |
-| Stripe | Test payments | Planned |
-| Prometheus and Grafana | Monitoring | Planned |
-| Terraform and AWS | Optional cloud deployment | Planned |
-
-## Project Structure
-
-```text
-vacation-rental-channel-manager/
-├── backend/
-│   ├── main.py            # FastAPI app factory, CORS, health check
-│   ├── config.py          # Settings from environment variables / .env
-│   ├── database.py        # PostgreSQL schema, connections, demo seed data
-│   ├── schemas.py         # Pydantic request and response models
-│   ├── routers/           # properties, reservations, stats endpoints
-│   ├── tests/             # pytest suite
-│   └── .env.example
-├── frontend/
-│   ├── src/App.jsx        # Staywise dashboard
-│   ├── src/api.js         # API client
-│   └── .env.example
-├── screenshots/
-├── README.md
-└── .gitignore
 ```
 
-## Run Locally
+# ⚙️ Prerequisites
+AWS Account
+Key Pair (ssh22.pem)
+Basic knowledge of SSH
 
-You need Python 3.11+, Node.js 20+ and Docker (for PostgreSQL).
+# Step 1: Launch EC2 Instance
 
-The quickest way to run everything is `docker compose up -d --build` from the project root, then open http://localhost:8080. See [docs/01-docker.md](docs/01-docker.md) and, for the CI pipeline, [docs/02-ci.md](docs/02-ci.md).
+- Name: web-server-1
+- AMI: Amazon Linux 2
+-  Instance Type: t2.micro
+-  Key Pair: ssh22
+-  Security Group: Allow SSH (22) and HTTP (80)
 
-### Database
+# Step 2: Connect to EC2
+
+```bash 
+ssh -i ssh22.pem ec2-user@<Public-IP>
+
+```
 
 ```bash
-cp .env.example .env            # set a password
-docker compose up -d db         # PostgreSQL on localhost:5432
-```
 
-### Backend
+sudo su
+
+```
+# Step 3: Install Apache Web Server
+```bash
+yum install httpd -y
+```
 
 ```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements-dev.txt
-uvicorn main:app --reload
+sysystemctl start httpd
 ```
 
-The API runs at http://127.0.0.1:8000. Interactive docs are at http://127.0.0.1:8000/docs.
-
-On first start the backend creates the tables and seeds 3 properties with about six months of bookings around today's date. To start over, run `docker compose down -v` (this deletes the database volume).
-
-### Frontend
-
-In a second terminal:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+systemctl start httpd
 ```
-
-Open http://localhost:5173/.
-
-### Configuration
-
-Copy `backend/.env.example` to `backend/.env` (and `frontend/.env.example` to `frontend/.env`) to change defaults.
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `DATABASE_URL` | `postgresql://vrcm:vrcm@localhost:5432/vrcm` | PostgreSQL connection string |
-| `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Frontend origins allowed to call the API |
-| `SEED_DEMO_DATA` | `true` | Insert demo data into an empty database |
-| `VITE_API_URL` | `http://127.0.0.1:8000` | Backend URL used by the dashboard |
-
-### Tests
-
-The tests use a real PostgreSQL database (`TEST_DATABASE_URL`, default `postgresql://vrcm:vrcm@localhost:5432/vrcm_test`). Each test drops and recreates the tables, so use a separate database:
 
 ```bash
-docker compose exec db createdb -U vrcm vrcm_test
-cd backend
-pytest
+systemctl enable httpd
+```
+# Step 4: Create Sample Files
+
+```bash
+cd /var/www/html
 ```
 
-## API
+# ADD HTML CONTENT
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/health` | Service and database health |
-| GET | `/api/properties` | List properties |
-| GET | `/api/properties/{id}` | One property |
-| GET | `/api/reservations` | List reservations. Filters: `status`, `property_id` |
-| GET | `/api/reservations/{id}` | One reservation |
-| POST | `/api/reservations` | Create a reservation. Returns 409 if the dates overlap an existing stay |
-| PATCH | `/api/reservations/{id}` | Change status: Pending → Confirmed / Cancelled, Confirmed → Cancelled |
-| GET | `/api/stats?month=YYYY-MM` | Occupancy, revenue, 6-month revenue trend and channel mix |
+```bash
+vi index.html 
+```
 
-Booking rules enforced by the API:
+```bash
+touch file{1..10}
+```
 
-- Check-out must be after check-in; stays are limited to 60 nights.
-- Two stays at the same property overlap when each starts before the other ends. The check-out day is free for the next arrival.
-- Cancelled reservations don't block dates. Cancelled is a final status.
-- Guest count can't exceed the property's capacity.
-- The total is calculated by the API from nights × nightly rate.
-- Revenue and occupancy count confirmed nights only, split across months by the night they fall on.
+```bash
+ls
+```
 
-## Development Roadmap
+# Step 5: Create AMI (Backup)
 
-1. Initialize and document the project.
-2. Build the React dashboard.
-3. Implement the backend REST API.
-4. Add database persistence.
-5. Develop simulated Airbnb and Vrbo integrations.
-6. Implement booking, calendar, and pricing workflows.
-7. Build the owner portal and Stripe test payment workflows.
-8. Add automated tests.
-9. Containerize the application with Docker.
-10. Implement CI/CD, security checks, and monitoring.
-11. Document optional AWS deployment.
 
-## Integration Limitations
+- EC2 → Instances → Select web-server-1
+-  Actions → Image → Create Image
+- Name: web-server-ami
+- Wait until AMI status = Available
 
-Initial OTA integrations will use simulated adapters and test data. This does not establish a live connection to Airbnb or Vrbo. Real integrations require appropriate platform access, supported APIs, and permissions.
+# Step 6: Stop Original Instance
+EC2 → Instances → Select web-server-1 → Stop
 
-Payment demonstrations will use Stripe test mode.
+# Step 7: Launch New Instance from AMI
+- EC2 → AMIs → Select web-server-ami → Launch Instance
+- Name: web-server-2
+- Instance Type: t3.micro
+-  Key Pair: ssh22
+-  Security Group: Allow SSH (22) and HTTP (80)
 
-## Security
+  # Step 8: Connect to New Instance
+  
+  ```bash 
+  ssh -i ssh22.pem ec2-user@<New-Public-IP>
 
-- Never commit passwords, API keys, or access tokens.
-- Keep environment files containing secrets out of Git.
-- Use test credentials during development.
-- Verify integrations before describing them as complete.
+```
 
-## Project Status
+```bash
+sudo su
 
-**Current phase:** Rebuilding GitHub Actions CI step by step (tests, lint, image build done; Trivy scan and GHCR push next). Then Kubernetes and Argo CD (GitOps).
+```
 
-### Completed
+# Step 9: Verify Apache Service
 
-- React dashboard ("Staywise") with overview, reservations and properties pages.
-- FastAPI backend split into routers, schemas, config and database modules.
-- PostgreSQL schema with constraints, foreign keys and a demo seed relative to today's date.
-- Create, confirm and cancel reservations with double-booking prevention (row lock with `SELECT ... FOR UPDATE`, covered by a concurrency test).
-- Dashboard metrics, revenue chart and channel mix computed from real data by `/api/stats`.
-- Configuration through environment variables.
-- pytest suite (20 tests) covering health, listing, creation, overlap rules, concurrent double-booking, status changes, validation and stats.
-- Docker images for backend and frontend, and docker-compose with an nginx reverse proxy and PostgreSQL.
-- GitHub Actions CI, being rebuilt step by step. Currently: backend tests against a real PostgreSQL service container, frontend lint and build (both in parallel, with dependency caching), then a matrix job that builds the backend and frontend Docker images tagged with the commit SHA. Trivy scanning and pushing to GitHub Container Registry come next. See the rebuild log in [docs/02-ci.md](docs/02-ci.md#rebuild-log).
+```bash
 
-### Current Limitations
+systemctl status httpd
 
-- Booking channels are simulated. Nothing connects to live Airbnb or Vrbo accounts.
-- No authentication.
-- Property photos are placeholders.
-- Calendar, channels, guests and settings pages are placeholders.
+```
 
-### Next Steps
+# Step 10: Verify Files
 
-1. Kubernetes manifests (minikube) and a Helm chart.
-2. Argo CD (GitOps).
-3. Prometheus metrics and Grafana dashboards.
-4. Terraform for AWS.
+```bash
+
+cd /var/www/html
+
+```
+
+```bash
+ls
+
+```
+
+# Expected Output
+
+file1 file2 file3 file4 file5 file6 file7 file8 file9 file10
+
+# 🌐 Testing (Optional)
+
+Open browser:
+
+``` bash
+http://<New-Public-IP>
+
+```
+
+# 🧠 Key Learnings
+AMI acts as a full backup of EC2 instance
+It includes:
+Operating System
+Installed packages (Apache)
+Files and configurations
+You can launch multiple identical instances using the same AMI
+Useful for:
+Disaster Recovery
+Auto Scaling
+Environment replication
+
+
+# ⭐ Final Thoughts
+
+This lab reflects a real-world cloud practice where systems are not rebuilt manually but replicated using images. It’s a foundational concept behind scalable and reliable cloud infrastructure.
+
+
+
+
+
