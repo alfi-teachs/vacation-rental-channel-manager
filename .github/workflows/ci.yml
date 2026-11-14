@@ -79,13 +79,11 @@ jobs:
     steps:
       - name: Download my code
         uses: actions/checkout@v7
-
       - name: build backend image
         run: |
           docker build -t vrcm-backend: ${{ github.sha }} ./backend
-
       - name: show the image
         run: |
           docker images 
-          
+
     
