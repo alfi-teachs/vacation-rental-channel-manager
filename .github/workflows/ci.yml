@@ -71,8 +71,7 @@ jobs:
           npm run lint   
 
       - name: build
-        run: |
-  
+        run: npm run build
   build-image:
     needs: [backend-test, frontend-build]
     runs-on: ubuntu-latest
