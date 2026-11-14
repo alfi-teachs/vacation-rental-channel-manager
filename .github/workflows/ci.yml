@@ -92,3 +92,23 @@ jobs:
       - name: show image size
         run: |
           docker images 
+
+      - name: scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: vrcm/${{ matrix.service }}:${{ github.sha }}    
+          severity-threshold: CRITICAL , HIGH
+          ignore-unfixed: true
+          format: table
+          exit-code: "0"
+
+      - name: FAIL on CRITICAL vulnerabilities 
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: vrcm/${{ matrix.service }}:${{ github.sha }}    
+          severity-threshold: CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: "1"
+          skip-setup-trivy: true
+        
