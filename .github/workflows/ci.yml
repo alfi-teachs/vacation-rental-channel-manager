@@ -66,10 +66,26 @@ jobs:
         run: |
           npm ci
 
-      - name: 
+      - name: npm lint
         run: |
           npm run lint   
 
       - name: build
         run: |
-          npm run build
+  
+  build-image:
+    needs: [backend-test, frontend-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download my code
+        uses: actions/checkout@v7
+
+      - name: build backend image
+        run: |
+          docker build -t vrcm-backend: ${{ github.sha }} ./backend
+
+      - name: show the image
+        run: |
+          docker images 
+          
+    
