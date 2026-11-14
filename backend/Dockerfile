@@ -7,6 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN useradd --create-home --uid 1000 appuser
 
 WORKDIR /app
+RUN pip install --no-cache-dir --upgrade pip
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade -r requirements.txt
 COPY --chown=appuser:appuser . .
