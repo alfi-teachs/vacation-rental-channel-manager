@@ -76,14 +76,20 @@ jobs:
   build-image:
     needs: [backend-test, frontend-build]
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - backend
+          - frontend
+
     steps:
       - name: Download my code
         uses: actions/checkout@v7
-      - name: build backend image
+
+      - name: build ${{ matrix.service }} image
         run: |
-          docker build -t vrcm-backend:${{ github.sha }} ./backend
-      - name: show the image
+          docker build -t vrcm/${{ matrix.service }}:${{ github.sha }} ./${{ matrix.service }} 
+
+      - name: show image size
         run: |
           docker images 
-
-    
